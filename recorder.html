@@ -1,40 +1,51 @@
 <!doctype html>
-<html lang="ca"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Gravadora · La meva veu</title>
-<style>body{font:16px system-ui,sans-serif;background:#f4f7fb;color:#183153;margin:0;padding:16px}.card{max-width:560px;margin:6vh auto;background:white;padding:28px;border-radius:20px;box-shadow:0 10px 35px #1232}button{font:inherit;padding:12px 16px;margin:4px;border:0;border-radius:10px;background:#205a83;color:#fff;cursor:pointer}button:disabled{opacity:.4}audio{width:100%;margin:20px 0}#status{min-height:2em}small{color:#52657a}</style>
-</head><body><main class="card"><h1>🎙️ La meva veu</h1><p>Prem «Començar», parla i després «Aturar». Pots escoltar o repetir abans d'enviar.</p><button id="start">⏺ Començar</button><button id="stop" disabled>⏹ Aturar</button><button id="reset" disabled>↻ Repetir</button><p id="clock">00:00 / 02:00</p><audio id="player" controls></audio><p><button id="send" disabled>Enviar al professorat</button></p><p id="status" role="status" aria-live="polite"></p><small>La gravació només s'envia quan prems «Enviar».</small></main>
+<html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Le cours de Madame Ferraz · Expression orale</title>
+<style>body{font:16px system-ui,sans-serif;background:#f2f5fb;color:#142d4e;margin:0;padding:18px}.card{max-width:580px;margin:5vh auto;background:white;padding:30px;border-radius:22px;box-shadow:0 8px 32px #1734551b}h1{font-size:1.65rem}h2{font-size:1.1rem;color:#456181}button{font:inherit;padding:12px 15px;margin:4px 4px 4px 0;border:0;border-radius:11px;background:#205a83;color:#fff;cursor:pointer}button:disabled{opacity:.45;cursor:default}button.secondary{background:#526a7d}audio{width:100%;margin:18px 0 8px}#status{min-height:3em;white-space:pre-wrap}small{color:#596f83}.tag{background:#e6eef7;display:inline-block;border-radius:8px;padding:7px 12px}</style>
+</head><body><main class="card"><h1>🎙️ Le cours de Madame Ferraz</h1><h2>Expression orale</h2><p>Enregistre ta voix, écoute ton travail, puis envoie-le à ton enseignante.</p><p class="tag">Durée maximale : 5 minutes</p><div><button id="start">⏺ Commencer</button><button id="stop" disabled>⏹ Arrêter</button><button id="reset" class="secondary" disabled>↻ Recommencer</button></div><p id="clock">00:00 / 05:00</p><audio id="player" controls preload="metadata"></audio><p><button id="send" disabled>Envoyer à Madame Ferraz</button></p><p id="status" role="status" aria-live="polite"></p><small>Pour tester uniquement le microphone, ouvre cette page directement. Pour envoyer le fichier, passe par le lien de la classe.</small></main>
 <script>
+'use strict';
 const token = new URLSearchParams(location.search).get('token');
-let rec, stream, chunks=[], blob=null, timer=null, seconds=0, url=null, mime='';
+const MAX_SECONDS=300, MAX_BYTES=12000000;
 const $=id=>document.getElementById(id), status=$('status');
-const resetUI=()=>{blob=null;chunks=[];if(url)URL.revokeObjectURL(url);url=null;$('player').removeAttribute('src');$('player').load();$('send').disabled=true;$('reset').disabled=true;};
+let rec=null,stream=null,chunks=[],blob=null,timer=null,seconds=0,audioUrl=null,format='';
+function message(s){status.textContent=s}
+function clock(){ $('clock').textContent=String(Math.floor(seconds/60)).padStart(2,'0')+':'+String(seconds%60).padStart(2,'0')+' / 05:00' }
+function clearPreview(){blob=null;chunks=[];if(audioUrl)URL.revokeObjectURL(audioUrl);audioUrl=null;$('player').removeAttribute('src');$('player').load();$('send').disabled=true;$('reset').disabled=true}
+function stopTracks(){if(stream){stream.getTracks().forEach(t=>t.stop());stream=null}}
+function stopRecorder(){if(rec?.state==='recording'){rec.stop();$('stop').disabled=true;message('Préparation de l’enregistrement…')}}
 $('start').onclick=async()=>{
- if(!token||!window.opener){status.textContent='Obre aquesta gravadora des de l’aplicació del centre.';return;}
- if(!navigator.mediaDevices?.getUserMedia || !window.MediaRecorder){status.textContent='Aquest navegador no permet gravar àudio.';return;}
+ if(!navigator.mediaDevices?.getUserMedia){message('Microphone indisponible : vérifie les autorisations et utilise HTTPS avec un navigateur récent.');return}
+ if(typeof MediaRecorder==='undefined'){message('Ce navigateur ne prend pas en charge l’enregistrement audio.');return}
  try{
-  resetUI();stream=await navigator.mediaDevices.getUserMedia({audio:true});
-  mime=['audio/webm;codecs=opus','audio/webm','audio/mp4'].find(m=>MediaRecorder.isTypeSupported(m));
-  if(!mime)throw Error('Format no compatible');
-  rec=new MediaRecorder(stream,{mimeType:mime});
-  rec.ondataavailable=e=>{if(e.data.size)chunks.push(e.data)};
-  rec.onstop=()=>{clearInterval(timer);stream.getTracks().forEach(t=>t.stop());blob=new Blob(chunks,{type:rec.mimeType});if(blob.size>4500000){status.textContent='Àudio massa gran; prova amb una gravació més curta.';resetUI();return}url=URL.createObjectURL(blob);$('player').src=url;$('send').disabled=false;$('reset').disabled=false;$('start').disabled=false;status.textContent='Escolta la gravació. Si està bé, prem «Enviar».';};
-  rec.start(1000);seconds=0;$('clock').textContent='00:00 / 02:00';$('start').disabled=true;$('stop').disabled=false;status.textContent='Enregistrant…';
-  timer=setInterval(()=>{seconds++;$('clock').textContent=String(Math.floor(seconds/60)).padStart(2,'0')+':'+String(seconds%60).padStart(2,'0')+' / 02:00';if(seconds>=120)$('stop').click()},1000);
- }catch(e){stream?.getTracks().forEach(t=>t.stop());status.textContent='No s’ha pogut activar el micròfon: '+e.message}
+  clearPreview();stopTracks();
+  stream=await navigator.mediaDevices.getUserMedia({audio:true});
+  const formats=['audio/webm;codecs=opus','audio/webm','audio/mp4'];
+  format=formats.find(m=>MediaRecorder.isTypeSupported(m));
+  if(!format)throw new Error('Aucun format audio compatible.');
+  rec=new MediaRecorder(stream,{mimeType:format});chunks=[];
+  rec.ondataavailable=e=>{if(e.data?.size)chunks.push(e.data)};
+  rec.onerror=e=>{message('Erreur de l’enregistreur : '+(e.error?.message||'erreur inconnue'));stopTracks()};
+  rec.onstop=()=>{
+   clearInterval(timer);timer=null;stopTracks();$('start').disabled=false;$('stop').disabled=true;
+   if(!chunks.length){message('Aucune donnée audio reçue. Vérifie le microphone et recommence.');return}
+   blob=new Blob(chunks,{type:rec.mimeType});
+   if(blob.size>MAX_BYTES){message('Le fichier dépasse 12 Mo. Recommence avec une durée plus courte.');clearPreview();return}
+   audioUrl=URL.createObjectURL(blob);$('player').src=audioUrl;$('player').load();$('reset').disabled=false;$('send').disabled=!(token&&window.opener);
+   message(token&&window.opener?'Écoute ton enregistrement avant de l’envoyer.':'Test du microphone réussi. Écoute l’audio ci-dessus. Pour l’envoyer, ouvre le lien de la classe.');
+  };
+  rec.start(1000); seconds=0;clock();$('start').disabled=true;$('stop').disabled=false;message('Enregistrement en cours… Parle maintenant !');
+  timer=setInterval(()=>{seconds++;clock();if(seconds>=MAX_SECONDS)stopRecorder()},1000);
+ }catch(e){clearInterval(timer);timer=null;stopTracks();$('start').disabled=false;$('stop').disabled=true;message('Impossible de démarrer : '+(e?.message||String(e))+'\nVérifie le microphone sélectionné dans les paramètres du navigateur.')}
 };
-$('stop').onclick=()=>{if(rec?.state==='recording'){rec.stop();$('stop').disabled=true;status.textContent='Preparant l’àudio…'}};
-$('reset').onclick=()=>{resetUI();status.textContent='Pots tornar a gravar.'};
+$('stop').onclick=stopRecorder;
+$('reset').onclick=()=>{clearPreview();message('Tu peux recommencer.')};
 $('send').onclick=()=>{
- if(!blob || !window.opener || !token)return;
- $('send').disabled=true;status.textContent='Transferint la gravació per guardar-la…';
+ if(!blob||!token||!window.opener)return;
+ $('send').disabled=true;message('Transfert de l’enregistrement…');
  const reader=new FileReader();
- reader.onload=()=>{
-  const base64=String(reader.result).split(',')[1];
-  window.opener.postMessage({type:'audio-ready',token,mime:blob.type.split(';')[0],base64},'*');
-  status.textContent='Enviament iniciat. Consulta la finestra principal per confirmar que s’ha desat.';
- };
- reader.onerror=()=>{status.textContent='Error llegint l’àudio.';$('send').disabled=false};
+ reader.onload=()=>{const base64=String(reader.result).split(',')[1];window.opener.postMessage({type:'audio-ready',token,mime:blob.type.split(';')[0],base64},'*');message('Envoi demandé. Vérifie la confirmation dans la fenêtre de la classe.')};
+ reader.onerror=()=>{$('send').disabled=false;message('Erreur de lecture du fichier audio.')};
  reader.readAsDataURL(blob);
 };
-window.addEventListener('message',e=>{if(e.source!==window.opener)return; if(e.data?.type==='saved'){status.textContent='✅ Gravació desada correctament al Drive del professorat.';blob=null;} if(e.data?.type==='retry' && blob){$('send').disabled=false;status.textContent='L’enviament ha fallat. Pots tornar-ho a provar.';}});
+window.addEventListener('message',e=>{if(e.source!==window.opener||!token||e.data?.token!==token)return;if(e.data.type==='saved'){message('✅ Enregistrement enregistré dans le Drive de l’enseignante.');blob=null}else if(e.data.type==='retry'&&blob){$('send').disabled=false;message('Échec de l’envoi. Réessaie.')}});
 </script></body></html>
