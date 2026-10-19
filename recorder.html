@@ -57,7 +57,46 @@ $('send').onclick=()=>{
  if(!blob||!token||!window.opener)return;
  $('send').disabled=true;message('Transfert de l’enregistrement…');
  const reader=new FileReader();
- reader.onload=()=>{const base64=String(reader.result).split(',')[1];window.opener.postMessage({type:'audio-ready',token,mode,mime:blob.type.split(';')[0],base64},'*');message('Envoi demandé. Vérifie la confirmation dans la fenêtre de la classe.')};
+ 
+reader.onload = () => {
+  const result = reader.result;
+
+  if (typeof result !== 'string' ||
+      !result.includes(',')) {
+    message('Erreur de conversion du fichier.');
+    $('send').disabled = false;
+    return;
+  }
+
+  const base64 = result.substring(
+    result.indexOf(',') + 1
+  );
+
+  if (base64.length < 100 ||
+      base64.length % 4 !== 0) {
+    message(
+      'Fichier incomplet : ' +
+      base64.length + ' caractères.'
+    );
+    $('send').disabled = false;
+    return;
+  }
+
+  message(
+    'Transfert de ' +
+    (blob.size / 1048576).toFixed(2) +
+    ' Mo vers la classe…'
+  );
+
+  window.opener.postMessage({
+    type: 'audio-ready',
+    token,
+    mode,
+    mime: blob.type.split(';')[0],
+    base64
+  }, '*');
+};
+window.opener.postMessage({type:'audio-ready',token,mode,mime:blob.type.split(';')[0],base64},'*');message('Envoi demandé. Vérifie la confirmation dans la fenêtre de la classe.')};
  reader.onerror=()=>{$('send').disabled=false;message('Erreur de lecture du fichier audio.')};
  reader.readAsDataURL(blob);
 };
