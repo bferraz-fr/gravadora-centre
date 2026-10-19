@@ -45,7 +45,7 @@ $('start').onclick=async()=>{
    blob=new Blob(chunks,{type:rec.mimeType});
    if(blob.size>MAX_BYTES){message('Le fichier dépasse 12 Mo. Recommence avec une durée plus courte.');clearPreview();return}
    audioUrl=URL.createObjectURL(blob);(mode==='video'?$('videoPlayer'):$('player')).src=audioUrl;(mode==='video'?$('videoPlayer'):$('player')).load();$('reset').disabled=false;$('send').disabled=!(token&&window.opener);
-   message((blob.size/1048576).toFixed(2)+' Mo · '+(token&&window.opener?'Écoute ton enregistrement avant de l’envoyer.':'Test du microphone réussi. Écoute l’enregistrement ci-dessus.')); 
+   message(token&&window.opener?'Écoute ton enregistrement avant de l’envoyer.':'Test du microphone réussi. Écoute l’audio ci-dessus. Pour l’envoyer, ouvre le lien de la classe.');
   };
   rec.start(1000); seconds=0;clock();$('start').disabled=true;$('stop').disabled=false;message('Enregistrement en cours… Parle maintenant !');
   timer=setInterval(()=>{seconds++;clock();if(seconds>=MAX_SECONDS)stopRecorder()},1000);
@@ -53,57 +53,37 @@ $('start').onclick=async()=>{
 };
 $('stop').onclick=stopRecorder;
 $('reset').onclick=()=>{clearPreview();message('Tu peux recommencer.')};
-$('send').onclick=()=>{
+// Convertit directament les dades binàries en Base64 pur,
+// sense Data URL ni prefixos data:.
+function blobToBase64(blob) {
+  return blob.arrayBuffer().then(buffer => {
+    const bytes = new Uint8Array(buffer);
+    const parts = [];
+    const CHUNK = 16384;
+    for (let i = 0; i < bytes.length; i += CHUNK) {
+      parts.push(String.fromCharCode(...bytes.subarray(i, i + CHUNK)));
+    }
+    return btoa(parts.join(''));
+  });
+}
+$('send').onclick=async()=>{
  if(!blob||!token||!window.opener)return;
- $('send').disabled=true;message('Transfert de l’enregistrement…');
- const reader=new FileReader();
- 
-reader.onload = () => {
-  const result = reader.result;
-
-  if (typeof result !== 'string' ||
-      !result.includes(',')) {
-    message('Erreur de conversion du fichier.');
-    $('send').disabled = false;
-    return;
-  }
-
-  const base64 = result.substring(
-    result.indexOf(',') + 1
-  );
-
-  if (base64.length < 100 ||
-      base64.length % 4 !== 0) {
-    message(
-      'Fichier incomplet : ' +
-      base64.length + ' caractères.'
-    );
-    $('send').disabled = false;
-    return;
-  }
-
-  message(
-    'Transfert de ' +
-    (blob.size / 1048576).toFixed(2) +
-    ' Mo vers la classe…'
-  );
-
-  window.opener.postMessage({
-    type: 'audio-ready',
-    token,
-    mode,
-    mime: blob.type.split(';')[0],
-    base64
-  }, '*');
-};
- 
-reader.onerror = () => {
-  $('send').disabled = false;
-  message('Erreur de lecture du fichier.');
-};
-
-reader.readAsDataURL(blob);
-
+ $('send').disabled=true;
+ message('Préparation et transfert de l’enregistrement…');
+ try {
+   const base64=await blobToBase64(blob);
+   if(!/^[A-Za-z0-9+/]*={0,2}$/.test(base64) ||
+      base64.length%4!==0 || base64.length<100) {
+     throw new Error('Conversion Base64 non valide.');
+   }
+   window.opener.postMessage({
+      type:'audio-ready',token,mode,mime:blob.type.split(';')[0],base64
+   }, '*');
+   message('Envoi demandé. Vérifie la confirmation dans la fenêtre de la classe.');
+ } catch(e) {
+   $('send').disabled=false;
+   message('Erreur de conversion : '+(e.message||String(e)));
+ }
 };
 window.addEventListener('message',e=>{if(e.source!==window.opener||!token||e.data?.token!==token)return;if(e.data.type==='saved'){message('✅ Enregistrement envoyé avec succès !');blob=null}else if(e.data.type==='retry'&&blob){$('send').disabled=false;message('Échec de l’envoi. Réessaie.')}});
 </script></body></html>
