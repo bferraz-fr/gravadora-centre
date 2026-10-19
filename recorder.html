@@ -96,9 +96,14 @@ reader.onload = () => {
     base64
   }, '*');
 };
-window.opener.postMessage({type:'audio-ready',token,mode,mime:blob.type.split(';')[0],base64},'*');message('Envoi demandé. Vérifie la confirmation dans la fenêtre de la classe.')};
- reader.onerror=()=>{$('send').disabled=false;message('Erreur de lecture du fichier audio.')};
- reader.readAsDataURL(blob);
+ 
+reader.onerror = () => {
+  $('send').disabled = false;
+  message('Erreur de lecture du fichier.');
+};
+
+reader.readAsDataURL(blob);
+
 };
 window.addEventListener('message',e=>{if(e.source!==window.opener||!token||e.data?.token!==token)return;if(e.data.type==='saved'){message('✅ Enregistrement envoyé avec succès !');blob=null}else if(e.data.type==='retry'&&blob){$('send').disabled=false;message('Échec de l’envoi. Réessaie.')}});
 </script></body></html>
