@@ -45,7 +45,7 @@ $('start').onclick=async()=>{
    blob=new Blob(chunks,{type:rec.mimeType});
    if(blob.size>MAX_BYTES){message('Le fichier dépasse 12 Mo. Recommence avec une durée plus courte.');clearPreview();return}
    audioUrl=URL.createObjectURL(blob);(mode==='video'?$('videoPlayer'):$('player')).src=audioUrl;(mode==='video'?$('videoPlayer'):$('player')).load();$('reset').disabled=false;$('send').disabled=!(token&&window.opener);
-   message(token&&window.opener?'Écoute ton enregistrement avant de l’envoyer.':'Test du microphone réussi. Écoute l’audio ci-dessus. Pour l’envoyer, ouvre le lien de la classe.');
+   message((blob.size/1048576).toFixed(2)+' Mo · '+(token&&window.opener?'Écoute ton enregistrement avant de l’envoyer.':'Test du microphone réussi. Écoute l’enregistrement ci-dessus.')); 
   };
   rec.start(1000); seconds=0;clock();$('start').disabled=true;$('stop').disabled=false;message('Enregistrement en cours… Parle maintenant !');
   timer=setInterval(()=>{seconds++;clock();if(seconds>=MAX_SECONDS)stopRecorder()},1000);
